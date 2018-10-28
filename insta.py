@@ -13,10 +13,11 @@ from IPython.display import display
 
 #post_file for saving posts
 
-location="C:\\Users\\ASUS\\Documents\\doyle-twitter\\"
+#location="C:\\Users\\ASUS\\Documents\\doyle-twitter\\"
+location="G:\\projects\\insta\\"
 profile="shahrzadseries"
 post_file=location+profile+".csv"
-comment_file=location+'commenters_{}'.format(profile)
+comment_file=location+'commenters_{}.csv'.format(profile)
 """initialize main parameters"""
 def main_parameters(profile):
     url_extraction="https://www.instagram.com"+"/{}/".format(profile)
@@ -44,11 +45,6 @@ def main_parameters(profile):
 
 secondpart,cooki,q_followers,q_more_post,base_url=main_parameters(profile)
 
-def writer(*variables,file):
-    try:
-        file.write(str(variables).strip(r"'").strip("(").strip(")")+"\n")
-    except:
-        pass
 
 
 """loading all posts"""
@@ -62,14 +58,16 @@ def posts(secondpart=secondpart,cooki=cooki,q_followers=q_followers,q_more_post=
     semi_url=urllib.parse.urlencode(params)
     f_url=semi_url.replace("%27","%22").replace("+","")
     posts=requests.get(base_url+f_url,headers=cooki).json()
-    writer('links','img_url','timestamp','num_comments','num_likes','caption',file=file)
+    file.write("{},{},{},{},{},{},{}\n".format('post_num','links','img_url','timestamp','num_comments','num_likes','caption'))
+    post_num=posts["data"]["user"]["edge_owner_to_timeline_media"]['count']
     for i in posts["data"]["user"]["edge_owner_to_timeline_media"]['edges']:
         try:
-            caption=i['node']['edge_media_to_caption']['edges'][0]['node']['text'].replace("\n"," ").replace("\r"," ").replace("\r"," ")
+            caption=i['node']['edge_media_to_caption']['edges'][0]['node']['text'].replace("\n"," ").replace("\r"," ")
         except:
             caption=""
         num_likes,num_comments,links,timestamp,img_url=i['node']['edge_media_preview_like']['count'],i['node']['edge_media_to_comment']['count'],r"https://www.instagram.com/p/"+i['node']['shortcode']+r"/?taken-by=shahrzadseries",i['node']['taken_at_timestamp'],i['node']["display_url"]
-        writer(links,img_url,timestamp,num_comments,num_likes,caption,file=file)
+        file.write("{},{},{},{},{},{},{}\n".format(post_num,links,img_url,timestamp,num_comments,num_likes,caption))
+        post_num-=1
 
     while posts["data"]["user"]["edge_owner_to_timeline_media"]["page_info"]['has_next_page']:
         time.sleep(2)
@@ -85,9 +83,10 @@ def posts(secondpart=secondpart,cooki=cooki,q_followers=q_followers,q_more_post=
             except:
                 caption=""
             num_likes,num_comments,links,timestamp,img_url=i['node']['edge_media_preview_like']['count'],i['node']['edge_media_to_comment']['count'],r"https://www.instagram.com/p/"+i['node']['shortcode']+r"/?taken-by=shahrzadseries",i['node']['taken_at_timestamp'],i['node']["display_url"]
-            writer(links,img_url,timestamp,num_comments,num_likes,caption,file=file)
+            file.write("{},{},{},{},{},{},{}\n".format(post_num,links,img_url,timestamp,num_comments,num_likes,caption))
+            post_num-=1
     file.close()
-posts()
+#posts()
 
 """loading all followers"""
 """
@@ -124,14 +123,17 @@ def comments():
     """if file exists:
         #open the file......
     """
-    if a==3:
-        return a    
+    if 'commenters_{}.csv'.format(profile) in os.listdir(location):
+        file=open(comment_file,'a',encoding='utf-8')
     else:
         file=open(comment_file,'a',encoding='utf-8')
-        posts=pd.read_csv(post_file,quoting=csv.QUOTE_NONE,lineterminator='\n',sep='delimiter',usecols=[0],squeeze=True)
-        generator=posts.iteritems()
-        for index,link in generator:
-            shortcode=link[28:39]
+        file.write("{},{},{},{},{},{},{}\n".format('comm_id','timestamp','user_id','username','shortcode','post_num','text'))
+        #posts=pd.read_csv(post_file,quoting=csv.QUOTE_NONE,lineterminator='\n',sep='delimiter',usecols=[0,1])
+        posts=pd.read_csv(post_file,usecols=['post_num','links'])
+        generator=posts.iterrows()
+        for index,others in generator:
+            shortcode=others[1][28:39]
+            post_num=others[0]
             params={"query_hash":"a3b895bdcb9606d5b1ee9926d885b924","variables":{"shortcode":shortcode,"first":5000}}
             semi_url=urllib.parse.urlencode(params)
             f_url=base_url+semi_url.replace("%27","%22").replace("+","")
@@ -143,118 +145,21 @@ def comments():
                 text=i['node']['text'].replace("\n"," ")
                 comm_id=i['node']['id']
                 shortcode=shortcode
-                writer(comm_id,timestamp,user_id,username,shortcode,text,comment_file,file=file)
+                file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
             while commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['has_next_page']:
-            time.sleep(3)
-            after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
-            params['variables'].update({'after':after})
-            semi_url=urllib.parse.urlencode(params)
-            f_url=base_url+semi_url.replace("%27","%22").replace("+","")
-            commenters=requests.get(f_url,headers=cooki)
-            for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
-                timestamp=i['node']['created_at']
-                user_id=i['node']['owner']['id']
-                username=i['node']['owner']['username']
-                text=i['node']['text'].replace("\n"," ")
-                comm_id=i['node']['id']
-                shortcode=shortcode
-                writer(comm_id,timestamp,user_id,username,shortcode,text,file=file)
-    file.close()
-
-
-
-    
-    commenters=requests.get(urlcommf,headers=cooki)
-        with open('C:\\Users\\ASUS\\Documents\\doyle-twitter\\commenters_{}.csv'.format(link),'a',encoding='utf-8') as file:
-            for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
-                
-                time_comm=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges'][0]['node']['created_at']
-                userid=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges'][0]['node']['owner']['id']
-                username=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges'][0]['node']['owner']['username']
-                text=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges'][0]['node']['text']
-                commenters.text
-
-                file.write("{},{},{},{}\n".format(i['node']['created_at'],i['node']['owner']['id'],i['node']['owner']['username'],i['node']['text'].replace("\n"," "))) 
-
-
-        while commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['has_next_page']:
-            time.sleep(2)
-            after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
-            comm['variables'].update({'after':after})
-            urlcomm=urllib.parse.urlencode(comm)
-            urlcommf=base_url+urlcomm.replace("%27","%22").replace("+","")
-            commenters=requests.get(urlcommf,headers=cooki)
-            with open('F:\\shahrzadpage\\commenters_{}.csv'.format(link),'a',encoding='utf-8') as file:
+                time.sleep(3)
+                after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
+                params['variables'].update({'after':after})
+                semi_url=urllib.parse.urlencode(params)
+                f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+                commenters=requests.get(f_url,headers=cooki)
                 for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
-                    file.write("{},{},{},{}\n".format(i['node']['created_at'],i['node']['owner']['id'],i['node']['owner']['username'],i['node']['text'].replace("\n"," ")))      
-    else:
-        continue
-
-likers={"query_hash":"1cb6ec562846122743b61e492c85999f","variables":{"shortcode":"BbFFM8uhHv5","first":10000}}
-urllike=urllib.parse.urlencode(likers)
-urllikef=base_url+urllike.replace("%27","%22").replace("+","")
-like=requests.get(urllikef,headers=cooki)
-with open('likers.csv','a',encoding='utf-16') as file:
-    for i in like.json()['data']['shortcode_media']['edge_liked_by']['edges']:
-        file.write("{},{}\n".format(i['node']['id'],i['node']['username']))
-
-like.json()['data']['shortcode_media']['edge_liked_by']['edges'][0]['node']['id']
-like.json()['data']['shortcode_media']['edge_liked_by']['edges'][0]['node']['username']
-
-while like.json()['data']['shortcode_media']['edge_liked_by']['page_info']['has_next_page']:  
-    likers["variables"].update({"after":after})
-    urllike=urllib.parse.urlencode(likers)
-    urllikef=base_url+urllike.replace("%27","%22").replace("+","")
-    print(urllikef)
-    like=requests.get(urllikef,headers=cooki)
-    with open('likers.csv','a',encoding='utf-16') as file:
-        for i in like.json()['data']['shortcode_media']['edge_liked_by']['edges']:
-            file.write("{},{}\n".format(i['node']['id'],i['node']['username']))
-
-like.json()
-    
-
-if like.json()['data']['shortcode_media']['edge_liked_by']['page_info']['has_next_page']==True:
-   
-    while True:
-        
-        after=like.json()['data']['shortcode_media']['edge_liked_by']['page_info']['end_cursor']
-        print(after)
-        likers["variables"].update({"after":after})
-        print(likers)
-        urllike=urllib.parse.urlencode(likers)
-        urllikef=base_url+urllike.replace("%27","%22").replace("+","")
-        print(urllikef)
-        like=requests.get(urllikef)
-        print("first is","\n",like.json()['data']['shortcode_media']['edge_liked_by']['edges'][0]['node']['full_name'])
-        print("last is","\n",like.json()['data']['shortcode_media']['edge_liked_by']['edges'][-2]['node']['full_name'] )    
-        like.json()['data']['shortcode_media']['edge_liked_by']['page_info']['has_next_page']==True
-"""
-#extract persons who liked
-like.json()['data']['shortcode_media']['edge_liked_by']['edges'][0]['node']['full_name']
-
-##database
-import psycopg2
-conn = psycopg2.connect(database='dvdrents' ,user='postgres',password=1)
-
-cur = conn.cursor()
-
-user_list=q.json()['data']['user']['edge_followed_by']['edges']
-
-cur.execute("CREATE TABLE followers (username varchar PRIMARY KEY, user_id bigint);")
-
-for i in user_list:
-    
-    #print(i['node']['username'], i['node']['id'])
-    cur.execute("INSERT INTO followers (username, user_id) VALUES (%s, %s)",(i['node']['username'], i['node']['id']))
-cur.execute("SELECT * FROM followers;")
-
-conn.commit()
-cur.close()
-conn.close()
-
-a={"ali":12}
-b={"emad":"z"}
-a.update(b)
-print(a)
-"""
+                    timestamp=i['node']['created_at']
+                    user_id=i['node']['owner']['id']
+                    username=i['node']['owner']['username']
+                    text=i['node']['text'].replace("\n"," ")
+                    comm_id=i['node']['id']
+                    shortcode=shortcode
+                    file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+    file.close()
+comments()
