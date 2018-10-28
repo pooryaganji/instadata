@@ -15,15 +15,14 @@ from IPython.display import display
 
 #location="C:\\Users\\ASUS\\Documents\\doyle-twitter\\"
 location="G:\\projects\\insta\\"
-profile="shahrzadseries"
+#profile="shahrzadseries"
+profile="seyed.ali.azimi"
 post_file=location+profile+".csv"
 comment_file=location+'commenters_{}.csv'.format(profile)
 """initialize main parameters"""
 def main_parameters(profile):
     url_extraction="https://www.instagram.com"+"/{}/".format(profile)
     cooki=dict(cookie=r'csrftoken=9FxPdAIhDmmOC9fWAcxelVkEWoZqUuyO; ds_user_id=3671346645; mid=W2BiCwALAAHV0SCzkbwgg9zjgv_1; ig_cb=1; mcd=3; csrftoken=9FxPdAIhDmmOC9fWAcxelVkEWoZqUuyO; shbid=14728; sessionid=IGSC26ba3437a61f01e788dcccfa9d2bce0b3d810179bfac525a618c0df61ce510e5%3APa3Ucm3vYyBjSJpEhz3mDvbP44GmiASz%3A%7B%22_auth_user_id%22%3A3671346645%2C%22_auth_user_backend%22%3A%22accounts.backends.CaseInsensitiveModelBackend%22%2C%22_auth_user_hash%22%3A%22%22%2C%22_platform%22%3A4%2C%22_token_ver%22%3A2%2C%22_token%22%3A%223671346645%3Amj2EEv3HAJYp0RIdAI0d6XpOF3rp92gN%3A3d28e1f4ffad39ad621b67c1b8c8db93f36f27dc7347475d5ba69de14009713f%22%2C%22last_refreshed%22%3A1540475985.7600660324%7D; rur=ATN; shbts=1540558534.2105925; urlgen="{\"46.224.55.223\": 56402}:1gG1rW:BWG8AOo5YEv5eybpnUK2vtPJzwE"')
-    #useragent={"user-agent":'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36'}
-    #cookie_notlog={"cookie":'mid=WxU4JwALAAFLcHrIW4M8jss-HqNw; mcd=3; shbid=14728; rur=FRC; csrftoken=Es8C8xSSUhrIfhPxqz9ih8JahyyzRY4o; urlgen="{\"time\": 1531896776\054 \"46.224.108.197\": 56402}:1ffosN:GxIvwVRDE7MFwYpn6LhxV6UiSqQ"'}
     #query_hash for different things
     q_followers="149bef52a3b2af88c0fec37913fe1cbc"
     q_more_post="bd0d6d184eefd4d0ce7036c11ae58ed9"
@@ -125,34 +124,22 @@ def comments():
     """
     if 'commenters_{}.csv'.format(profile) in os.listdir(location):
         file=open(comment_file,'a',encoding='utf-8')
+        posts=pd.read_csv(post_file,usecols=['post_num','links','timestamp'])
+        hist
     else:
         file=open(comment_file,'a',encoding='utf-8')
         file.write("{},{},{},{},{},{},{}\n".format('comm_id','timestamp','user_id','username','shortcode','post_num','text'))
         #posts=pd.read_csv(post_file,quoting=csv.QUOTE_NONE,lineterminator='\n',sep='delimiter',usecols=[0,1])
         posts=pd.read_csv(post_file,usecols=['post_num','links'])
         generator=posts.iterrows()
-        for index,others in generator:
+        for _ , others in generator:
             shortcode=others[1][28:39]
             post_num=others[0]
             params={"query_hash":"a3b895bdcb9606d5b1ee9926d885b924","variables":{"shortcode":shortcode,"first":5000}}
             semi_url=urllib.parse.urlencode(params)
             f_url=base_url+semi_url.replace("%27","%22").replace("+","")
             commenters=requests.get(f_url,headers=cooki)
-            for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
-                timestamp=i['node']['created_at']
-                user_id=i['node']['owner']['id']
-                username=i['node']['owner']['username']
-                text=i['node']['text'].replace("\n"," ")
-                comm_id=i['node']['id']
-                shortcode=shortcode
-                file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
-            while commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['has_next_page']:
-                time.sleep(3)
-                after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
-                params['variables'].update({'after':after})
-                semi_url=urllib.parse.urlencode(params)
-                f_url=base_url+semi_url.replace("%27","%22").replace("+","")
-                commenters=requests.get(f_url,headers=cooki)
+            try:
                 for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
                     timestamp=i['node']['created_at']
                     user_id=i['node']['owner']['id']
@@ -161,5 +148,22 @@ def comments():
                     comm_id=i['node']['id']
                     shortcode=shortcode
                     file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+                while commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['has_next_page']:
+                    time.sleep(3)
+                    after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
+                    params['variables'].update({'after':after})
+                    semi_url=urllib.parse.urlencode(params)
+                    f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+                    commenters=requests.get(f_url,headers=cooki)
+                    for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
+                        timestamp=i['node']['created_at']
+                        user_id=i['node']['owner']['id']
+                        username=i['node']['owner']['username']
+                        text=i['node']['text'].replace("\n"," ")
+                        comm_id=i['node']['id']
+                        shortcode=shortcode
+                        file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+            except:
+                continue
     file.close()
 comments()
