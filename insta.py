@@ -16,7 +16,7 @@ from IPython.display import display
 #location="C:\\Users\\ASUS\\Documents\\doyle-twitter\\"
 location="G:\\projects\\insta\\"
 #profile="shahrzadseries"
-profile="seyed.ali.azimi"
+profile="emadazimi"
 post_file=location+profile+".csv"
 comment_file=location+'commenters_{}.csv'.format(profile)
 """initialize main parameters"""
@@ -57,15 +57,15 @@ def posts(secondpart=secondpart,cooki=cooki,q_followers=q_followers,q_more_post=
     semi_url=urllib.parse.urlencode(params)
     f_url=semi_url.replace("%27","%22").replace("+","")
     posts=requests.get(base_url+f_url,headers=cooki).json()
-    file.write("{},{},{},{},{},{},{}\n".format('post_num','links','img_url','timestamp','num_comments','num_likes','caption'))
+    file.write("{},{},{},{},{},{},{},{}\n".format('post_num','shortcode','links','img_url','timestamp','num_comments','num_likes','caption'))
     post_num=posts["data"]["user"]["edge_owner_to_timeline_media"]['count']
     for i in posts["data"]["user"]["edge_owner_to_timeline_media"]['edges']:
         try:
             caption=i['node']['edge_media_to_caption']['edges'][0]['node']['text'].replace("\n"," ").replace("\r"," ")
         except:
             caption=""
-        num_likes,num_comments,links,timestamp,img_url=i['node']['edge_media_preview_like']['count'],i['node']['edge_media_to_comment']['count'],r"https://www.instagram.com/p/"+i['node']['shortcode']+r"/?taken-by=shahrzadseries",i['node']['taken_at_timestamp'],i['node']["display_url"]
-        file.write("{},{},{},{},{},{},{}\n".format(post_num,links,img_url,timestamp,num_comments,num_likes,caption))
+        num_likes,shortcode,num_comments,links,timestamp,img_url=i['node']['edge_media_preview_like']['count'],i['node']['shortcode'],i['node']['edge_media_to_comment']['count'],r"https://www.instagram.com/p/"+i['node']['shortcode']+r"/?taken-by={}".format(profile),i['node']['taken_at_timestamp'],i['node']["display_url"]
+        file.write("{},{},{},{},{},{},{},{}\n".format(post_num,shortcode,links,img_url,timestamp,num_comments,num_likes,caption))
         post_num-=1
 
     while posts["data"]["user"]["edge_owner_to_timeline_media"]["page_info"]['has_next_page']:
@@ -81,12 +81,12 @@ def posts(secondpart=secondpart,cooki=cooki,q_followers=q_followers,q_more_post=
                 caption=i['node']['edge_media_to_caption']['edges'][0]['node']['text'].replace("\n"," ").replace("\r"," ").replace("\r"," ")
             except:
                 caption=""
-            num_likes,num_comments,links,timestamp,img_url=i['node']['edge_media_preview_like']['count'],i['node']['edge_media_to_comment']['count'],r"https://www.instagram.com/p/"+i['node']['shortcode']+r"/?taken-by=shahrzadseries",i['node']['taken_at_timestamp'],i['node']["display_url"]
-            file.write("{},{},{},{},{},{},{}\n".format(post_num,links,img_url,timestamp,num_comments,num_likes,caption))
+            num_likes,num_comments,links,timestamp,img_url=i['node']['edge_media_preview_like']['count'],i['node']['edge_media_to_comment']['count'],r"https://www.instagram.com/p/"+i['node']['shortcode']+r"/?taken-by={}".format(profile),i['node']['taken_at_timestamp'],i['node']["display_url"]
+            file.write("{},{},{},{},{},{},{},{}\n".format(post_num,shortcode,links,img_url,timestamp,num_comments,num_likes,caption))
             post_num-=1
     file.close()
-#posts()
 
+#posts()
 """loading all followers"""
 """
 secondpart.update({"first":"5000"})
@@ -116,31 +116,45 @@ while followers.json()['data']['user']['edge_followed_by']['page_info']['has_nex
 
 """
 
-a=2
-
 def comments():
+    #blacklist for posts which dont contain comment
+    blist=[]
+    try:
+        with open("blacklist_{}.txt".format(profile),'r') as blacklist:
+            blist+=blacklist.read().split(",")
+
+    except:
+        pass
     """if file exists:
-        #open the file......
-    """
+    open the file......"""
     if 'commenters_{}.csv'.format(profile) in os.listdir(location):
+        print("hello")
         file=open(comment_file,'a',encoding='utf-8')
-        posts=pd.read_csv(post_file,usecols=['post_num','links','timestamp'])
-        hist
+        posts=pd.read_csv(post_file,usecols=["shortcode","post_num"],sep='delimiter',delimiter=",",quoting=csv.QUOTE_NONE,lineterminator='\n')
+        comments=pd.read_csv(comment_file,usecols=["timestamp","shortcode","post_num"],sep='delimiter',delimiter=",",quoting=csv.QUOTE_NONE,lineterminator='\n')
+        #extract uncrawled posts
+        new_posts=set(posts.shortcode.unique())-set(comments.shortcode.unique())-set(blist)
+        print(new_posts)
+
     else:
+        print("hello there")
         file=open(comment_file,'a',encoding='utf-8')
         file.write("{},{},{},{},{},{},{}\n".format('comm_id','timestamp','user_id','username','shortcode','post_num','text'))
         #posts=pd.read_csv(post_file,quoting=csv.QUOTE_NONE,lineterminator='\n',sep='delimiter',usecols=[0,1])
-        posts=pd.read_csv(post_file,usecols=['post_num','links'])
+        posts=pd.read_csv(post_file,usecols=["shortcode","post_num"],sep='delimiter',delimiter=",",quoting=csv.QUOTE_NONE,lineterminator='\n')
         generator=posts.iterrows()
         for _ , others in generator:
-            shortcode=others[1][28:39]
+            
+            shortcode=others[1]
             post_num=others[0]
             params={"query_hash":"a3b895bdcb9606d5b1ee9926d885b924","variables":{"shortcode":shortcode,"first":5000}}
             semi_url=urllib.parse.urlencode(params)
             f_url=base_url+semi_url.replace("%27","%22").replace("+","")
             commenters=requests.get(f_url,headers=cooki)
-            try:
-                for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
+            content=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']
+            if len(content)>0:
+                #content=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']
+                for i in content:
                     timestamp=i['node']['created_at']
                     user_id=i['node']['owner']['id']
                     username=i['node']['owner']['username']
@@ -163,7 +177,10 @@ def comments():
                         comm_id=i['node']['id']
                         shortcode=shortcode
                         file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
-            except:
+            else:
+                print("except")
+                with open("blacklist_{}.txt".format(profile),'a') as blacklist:
+                    blacklist.write(others[1]+",")
                 continue
     file.close()
 comments()
