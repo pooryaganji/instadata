@@ -10,6 +10,7 @@ import pandas as pd
 import os
 import csv
 from IPython.display import display
+import datetime
 
 #post_file for saving posts
 
@@ -86,7 +87,7 @@ def posts(secondpart=secondpart,cooki=cooki,q_followers=q_followers,q_more_post=
             post_num-=1
     file.close()
 
-#posts()
+posts()
 """loading all followers"""
 """
 secondpart.update({"first":"5000"})
@@ -128,16 +129,151 @@ def comments():
     """if file exists:
     open the file......"""
     if 'commenters_{}.csv'.format(profile) in os.listdir(location):
-        print("hello")
+        print("file exists")
         file=open(comment_file,'a',encoding='utf-8')
-        posts=pd.read_csv(post_file,usecols=["shortcode","post_num"],sep='delimiter',delimiter=",",quoting=csv.QUOTE_NONE,lineterminator='\n')
+        posts=pd.read_csv(post_file,usecols=["shortcode","post_num","timestamp"],sep='delimiter',delimiter=",",quoting=csv.QUOTE_NONE,lineterminator='\n')
         comments=pd.read_csv(comment_file,usecols=["timestamp","shortcode","post_num"],sep='delimiter',delimiter=",",quoting=csv.QUOTE_NONE,lineterminator='\n')
-        #extract uncrawled posts
+        #unique comments and their last comment time
+        cmnt_checker=comments[["timestamp","shortcode"]].groupby("shortcode").max()
+        unique_comments=cmnt_checker.index
+        generator=posts.iterrows()
+        
+        for _ , others in generator:
+            post_num=others[0]
+            shortcode=others[1]
+            timestamp=others[2]
+            delta_time=datetime.date.today()-datetime.date.fromtimestamp(timestamp)
+            #check if post is older than 3 days if yes ,so others are older
+            if delta_time.days > 60:
+                print("this is old post "+shortcode)
+                break
+            #check if post is new (not in blacklist and not in history of previuous comments)
+            elif shortcode not in set(blist) and shortcode not in set(unique_comments):
+                print("this is new post "+shortcode)
+                params={"query_hash":"a3b895bdcb9606d5b1ee9926d885b924","variables":{"shortcode":shortcode,"first":5000}}
+                semi_url=urllib.parse.urlencode(params)
+                f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+                commenters=requests.get(f_url,headers=cooki)
+                content=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']
+                if len(content)>0:
+                    #content=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']
+                    for i in content:
+                        timestamp=i['node']['created_at']
+                        user_id=i['node']['owner']['id']
+                        username=i['node']['owner']['username']
+                        text=i['node']['text'].replace("\n"," ")
+                        comm_id=i['node']['id']
+                        shortcode=shortcode
+                        file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+                    while commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['has_next_page']:
+                        time.sleep(3)
+                        after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
+                        params['variables'].update({'after':after})
+                        semi_url=urllib.parse.urlencode(params)
+                        f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+                        commenters=requests.get(f_url,headers=cooki)
+                        for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
+                            timestamp=i['node']['created_at']
+                            user_id=i['node']['owner']['id']
+                            username=i['node']['owner']['username']
+                            text=i['node']['text'].replace("\n"," ")
+                            comm_id=i['node']['id']
+                            shortcode=shortcode
+                            file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+                else:
+                    print("except")
+                    with open("blacklist_{}.txt".format(profile),'a') as blacklist:
+                        blacklist.write(others[1]+",")
+                    continue
+            #if not in black list and its less than 3 days old, so we check for new comments
+            elif shortcode not in set(blist):
+                print("less than three days post"+shortcode)
+                params={"query_hash":"a3b895bdcb9606d5b1ee9926d885b924","variables":{"shortcode":shortcode,"first":5000}}
+                semi_url=urllib.parse.urlencode(params)
+                f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+                commenters=requests.get(f_url,headers=cooki)
+                content=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']
+                if len(content)>0:
+                    
+                    for i in content:
+                        timestamp=i['node']['created_at']
+                        user_id=i['node']['owner']['id']
+                        username=i['node']['owner']['username']
+                        text=i['node']['text'].replace("\n"," ")
+                        comm_id=i['node']['id']
+                        shortcode=shortcode
+                        #with this variable if we get to old comment we stop while loop
+                        continues=True
+                        #old and new comment problem
+                        last_cmnt_time=cmnt_checker.loc[shortcode].values[0]
+                        if timestamp <= last_cmnt_time:
+                            continues=False
+                            continue
+                        file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+                    while continues and commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['has_next_page']:
+                        time.sleep(3)
+                        after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
+                        params['variables'].update({'after':after})
+                        semi_url=urllib.parse.urlencode(params)
+                        f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+                        commenters=requests.get(f_url,headers=cooki)
+                        for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
+                            timestamp=i['node']['created_at']
+                            user_id=i['node']['owner']['id']
+                            username=i['node']['owner']['username']
+                            text=i['node']['text'].replace("\n"," ")
+                            comm_id=i['node']['id']
+                            shortcode=shortcode
+                            if timestamp >= cmnt_checker.loc[shortcode].values[0]:
+                                break
+                            file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+                else:
+                    print("except")
+                    with open("blacklist_{}.txt".format(profile),'a') as blacklist:
+                        blacklist.write(others[1]+",")
+                    continue  
+
+        """
         new_posts=set(posts.shortcode.unique())-set(comments.shortcode.unique())-set(blist)
         print(new_posts)
-
+        for shortcode in new_posts:
+            params={"query_hash":"a3b895bdcb9606d5b1ee9926d885b924","variables":{"shortcode":shortcode,"first":5000}}
+            semi_url=urllib.parse.urlencode(params)
+            f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+            commenters=requests.get(f_url,headers=cooki)
+            content=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']
+            if len(content)>0:
+                #content=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']
+                for i in content:
+                    timestamp=i['node']['created_at']
+                    user_id=i['node']['owner']['id']
+                    username=i['node']['owner']['username']
+                    text=i['node']['text'].replace("\n"," ")
+                    comm_id=i['node']['id']
+                    shortcode=shortcode
+                    file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))
+                while commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['has_next_page']:
+                    time.sleep(3)
+                    after=commenters.json()['data']['shortcode_media']['edge_media_to_comment']['page_info']['end_cursor']
+                    params['variables'].update({'after':after})
+                    semi_url=urllib.parse.urlencode(params)
+                    f_url=base_url+semi_url.replace("%27","%22").replace("+","")
+                    commenters=requests.get(f_url,headers=cooki)
+                    for i in commenters.json()['data']['shortcode_media']['edge_media_to_comment']['edges']:
+                        timestamp=i['node']['created_at']
+                        user_id=i['node']['owner']['id']
+                        username=i['node']['owner']['username']
+                        text=i['node']['text'].replace("\n"," ")
+                        comm_id=i['node']['id']
+                        shortcode=shortcode
+                        file.write("{},{},{},{},{},{},{}\n".format(comm_id,timestamp,user_id,username,shortcode,post_num,text))    
+            else:
+                print("except")
+                with open("blacklist_{}.txt".format(profile),'a') as blacklist:
+                    blacklist.write(others[1]+",")
+                continue"""
     else:
-        print("hello there")
+        print("new file creating ...")
         file=open(comment_file,'a',encoding='utf-8')
         file.write("{},{},{},{},{},{},{}\n".format('comm_id','timestamp','user_id','username','shortcode','post_num','text'))
         #posts=pd.read_csv(post_file,quoting=csv.QUOTE_NONE,lineterminator='\n',sep='delimiter',usecols=[0,1])
